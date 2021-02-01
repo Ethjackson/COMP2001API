@@ -9,7 +9,7 @@ using COMP2001API.Models;
 
 namespace COMP2001API.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/user")]
     [ApiController]
     public class AsimnusersController : ControllerBase
     {
