@@ -1,0 +1,32 @@
+DROP TABLE ASIMNPasswords
+DROP TABLE ASIMNSessions
+DROP TABLE ASIMNUsers
+
+CREATE TABLE ASIMNUsers
+(
+    UserId int not NULL IDENTITY(1,1),
+    FirstName VARCHAR(40),
+    LastName VARCHAR(40),
+    Password VARCHAR(40),
+    Email VARCHAR(40),
+    constraint PK_UserId PRIMARY KEY (UserId)
+);
+
+CREATE TABLE ASIMNPasswords
+(
+    PasswordId int NOT NULL IDENTITY(1,1),
+    UserId int not NULL,
+    Password VARCHAR(40),
+    DateChanged DATE,
+    constraint PK_PasswordId PRIMARY KEY (PasswordId),
+    constraint FK_UserIdPass FOREIGN KEY (UserId) REFERENCES ASIMNUsers(UserId)
+);
+
+CREATE TABLE ASIMNSessions
+(
+    SessionId int NOT NULL IDENTITY(1,1),
+    UserId int not NULL,
+    DateTime DATETIME
+    constraint PK_SessionId PRIMARY KEY (SessionId),
+    CONSTRAINT FK_UserIdSess FOREIGN KEY (UserId) REFERENCES ASIMNUsers(UserId)
+);
