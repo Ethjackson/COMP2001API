@@ -1,0 +1,145 @@
+IF EXISTS (
+SELECT *
+ FROM INFORMATION_SCHEMA.ROUTINES
+WHERE SPECIFIC_SCHEMA = N'dbo'
+ AND SPECIFIC_NAME = N'UserEntry'
+ AND ROUTINE_TYPE = N'PROCEDURE'
+)
+DROP PROCEDURE dbo.UserEntry
+GO
+
+IF EXISTS (
+SELECT *
+ FROM INFORMATION_SCHEMA.ROUTINES
+WHERE SPECIFIC_SCHEMA = N'dbo'
+ AND SPECIFIC_NAME = N'UserAuth'
+ AND ROUTINE_TYPE = N'PROCEDURE'
+)
+DROP PROCEDURE dbo.UserAuth
+GO
+
+IF EXISTS (
+SELECT *
+ FROM INFORMATION_SCHEMA.ROUTINES
+WHERE SPECIFIC_SCHEMA = N'dbo'
+ AND SPECIFIC_NAME = N'UserUpd'
+ AND ROUTINE_TYPE = N'PROCEDURE'
+)
+DROP PROCEDURE dbo.UserUpd
+GO
+
+IF EXISTS (
+SELECT *
+ FROM INFORMATION_SCHEMA.ROUTINES
+WHERE SPECIFIC_SCHEMA = N'dbo'
+ AND SPECIFIC_NAME = N'UserDel'
+ AND ROUTINE_TYPE = N'PROCEDURE'
+)
+DROP PROCEDURE dbo.UserDel
+
+GO
+CREATE OR ALTER TRIGGER PassChange ON dbo.ASIMNUsers
+AFTER UPDATE 
+AS
+DECLARE @OldPass VARCHAR(40)
+SET @OldPass = (SELECT Password FROM deleted)
+DECLARE @UserId INT
+SET @UserId = (SELECT UserId FROM inserted)
+BEGIN
+INSERT INTO dbo.ASIMNPasswords(UserId, Password, DateChanged)
+VALUES (@UserID, @OldPass, GETDATE())
+END
+GO
+
+GO
+CREATE PROCEDURE dbo.UserEntry (@first VARCHAR(40), @last VARCHAR(40), @password VARCHAR(40) , @useremail VARCHAR(40), @regOutput VARCHAR(40) Output)
+AS 
+    DECLARE @UserId INT
+    SET @UserID = (SELECT UserId FROM dbo.ASIMNUsers WHERE Email = @useremail)
+    IF EXISTS (SELECT * FROM dbo.ASIMNUsers WHERE Email = @useremail)
+        BEGIN
+            SET @regOutput = CONCAT('208', ',', @UserId);
+            SELECT UserId FROM dbo.ASIMNUsers WHERE FirstName = @first AND LastName = @last AND Password = @password AND Email = @useremail
+            RAISERROR('User already exists in database', 2, 1)
+        END
+    IF NOT EXISTS ( SELECT * FROM dbo.ASIMNUsers WHERE Email = @useremail)
+        BEGIN
+            INSERT INTO dbo.ASIMNUsers(FirstName, LastName, Password, Email)
+            VALUES (@first, @last, @password, @useremail)
+            SET @UserID = (SELECT UserId FROM dbo.ASIMNUsers WHERE UserId=(SELECT max(UserId) FROM dbo.ASIMNUsers))
+            SET @regOutput = CONCAT('200', ',', @UserId)
+            PRINT 'The customer has been added'
+        END
+        GO
+    DECLARE @regOutput VARCHAR(40)
+EXECUTE dbo.UserEntry 'testfname', 'testlname', 'testpass', 'testemail', @regOutput Output
+EXECUTE dbo.UserEntry 'testfname1', 'testlname1', 'testpass1', 'testemail1', @regOutput Output
+EXECUTE dbo.UserEntry 'testfname2', 'testlname2', 'testpass2', 'testemail2', @regOutput Output
+EXECUTE dbo.UserEntry 'testfname3', 'testlname3', 'testpass3', 'testemail3', @regOutput Output
+SELECT @regOutput
+
+GO
+CREATE PROCEDURE dbo.UserAuth (@password VARCHAR(40) , @useremail VARCHAR(40))
+AS
+DECLARE @userId INT
+DECLARE @loginState INT
+    IF NOT EXISTS ( SELECT * FROM dbo.ASIMNUsers WHERE Password = @password AND Email = @useremail)
+        BEGIN
+            RAISERROR('Login incorrect', 2, 1)
+            SET @loginState = 0;
+            RETURN @loginState;
+        END
+    IF EXISTS (SELECT * FROM dbo.ASIMNUsers WHERE Password = @password AND Email = @useremail)
+    BEGIN
+            SET @userId = (SELECT UserId FROM dbo.ASIMNUsers WHERE Password = @password AND Email = @useremail)
+            INSERT INTO dbo.ASIMNSessions(UserId, DateTime)
+            VALUES (@userId, GETDATE())
+            SET @loginState = 1;
+            RETURN @loginState;
+    END
+    GO
+    declare @loginState int
+EXECUTE @loginState = dbo.UserAuth 'Admin', 'David@uni.co.uk'
+
+GO
+CREATE PROCEDURE dbo.UserUpd (@first VARCHAR(40), @last VARCHAR(40), @password VARCHAR(40) , @useremail VARCHAR(40), @userId INT)
+AS 
+    IF EXISTS (SELECT * FROM dbo.ASIMNUsers WHERE FirstName = @first AND LastName = @last AND Password = @password AND Email = @useremail)
+        BEGIN
+            RAISERROR('User Details Already Exist', 2, 1)
+        END
+    IF NOT EXISTS ( SELECT * FROM dbo.ASIMNUsers WHERE FirstName = @first AND LastName = @last AND Password = @password AND Email = @useremail)
+        BEGIN
+            PRINT 'User Details Edited'
+            UPDATE dbo.ASIMNUsers
+            SET FirstName = @first, LastName = @last, Password = @password, Email = @useremail
+            WHERE UserId = @userId;
+        END
+        GO
+EXECUTE dbo.UserUpd 'David', 'Attonborough', 'Admin', 'Admin@uni.co.uk', 1
+
+GO
+CREATE PROCEDURE dbo.UserDel (@userId INT)
+AS
+    IF NOT EXISTS ( SELECT * FROM dbo.ASIMNUsers WHERE UserId = @userId)
+        BEGIN
+            RAISERROR('User does not exist to Delete', 2, 1)
+        END
+    IF EXISTS (SELECT * FROM dbo.ASIMNUsers WHERE UserId = @userId)
+        BEGIN
+        PRINT 'User Deleted'
+            DELETE FROM dbo.ASIMNPasswords WHERE UserId = @userId
+            DELETE FROM dbo.ASIMNSessions WHERE UserId = @userId
+            DELETE FROM dbo.ASIMNUsers WHERE UserId = @userId
+        END
+        GO
+EXECUTE dbo.UserDel 1
+
+DROP VIEW dbo.UserVisit
+GO
+GO 
+CREATE VIEW dbo.UserVisit AS 
+SELECT UserId, COUNT(UserId) as VisitTimes
+FROM dbo.ASIMNSessions
+GROUP BY UserId
+GO 
